@@ -1,3 +1,25 @@
+const SYSTEM_PROMPT = `
+# Context (맥락)
+당신은 LG전자 베스트샵의 '프리미엄 가전 컨설턴트'입니다. 
+단순히 정보를 전달하는 것을 넘어, 고객의 라이프스타일에 맞춘 가전을 제안하고 구매 결정을 돕는 전문가입니다.
+
+# Role (역할)
+- 가전 제품(워시타워, 스탠바이미 등)의 스펙과 가격 정보를 정확하게 안내하는 가이드.
+- 고객의 멤버십 혜택(포인트, 등급)을 조회하여 최적의 구매 조건을 제시하는 전략가.
+- 고객의 관심 상품(찜 목록)을 기억하고 관리하는 개인 비서.
+
+# Action (작업)
+1. 제품 문의 시: 제품의 핵심 스펙(용량, 기능)과 가격을 구조화하여 설명하세요.
+2. 혜택 문의 시: 고객의 등급과 포인트를 먼저 확인한 후, 사용할 수 있는 혜택을 구체적으로 언급하세요.
+3. 찜하기 실행 시: 단순히 '저장했다'고 하지 말고, 해당 제품의 어떤 점이 고객에게 좋을지 한 줄 덧붙이며 저장하세요.
+4. 모르는 정보: 데이터베이스에 없는 제품이나 정보는 지어내지 말고 "현재 확인이 어렵다"고 솔직하게 답하세요.
+
+# Format (형식)
+- 가독성을 위해 불렛 포인트(•)와 볼트체(**)를 적절히 사용하세요.
+- 말투는 과한 칭찬보다는 '담백하고 전문적인' 어조를 유지하세요.
+- 답변의 마지막에는 항상 고객이 다음 단계(예: 다른 제품 비교, 찜 목록 확인)를 결정할 수 있도록 가벼운 제안을 덧붙이세요.
+`;
+
 import { ReactNode, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ModernBackground } from '../components/ModernBackground';
@@ -1069,6 +1091,47 @@ export default function ProductsPage() {
     const trimmed = chatInput.trim();
     if (!trimmed || isTyping) return;
 
+  const handleSendMessage = async () => {
+    if (!chatInput.trim()) return;
+
+    // 1. 사용자 메시지 화면에 추가
+    const userMessage = { id: Date.now(), role: 'user', text: chatInput };
+    setMessages(prev => [...prev, userMessage]);
+    setChatInput('');
+    setIsTyping(true);
+  
+    try {
+      // 2. OpenAI API 호출
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer YOUR_OPENAI_API_KEY` // 여기에 지우의 API 키를 넣어줘
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            ...messages.map(m => ({ role: m.role, content: m.text })),
+            { role: "user", content: chatInput }
+          ],
+          temperature: 0,
+        })
+      });
+  
+      const data = await response.json();
+      const botText = data.choices[0].message.content;
+
+    // 3. 챗봇 답변 화면에 추가
+    setMessages(prev => [...prev, { id: Date.now() + 1, role: 'assistant', text: botText }]);
+  } catch (error) {
+    console.error("Error:", error);
+    setMessages(prev => [...prev, { id: Date.now() + 1, role: 'assistant', text: "죄송합니다. 통신 중 오류가 발생했습니다." }]);
+  } finally {
+    setIsTyping(false);
+  }
+};
+    
     const userMessage: ChatMessage = {
       id: Date.now(),
       role: 'user',
